@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { Member, Priority, Sprint, Status, Subtask, Task } from './types'
+import type { Member, Priority, Sprint, Status, StatusChange, Subtask, Task } from './types'
 import { MEMBER_COLORS } from './constants'
 
 export const uid = () => Math.random().toString(36).slice(2, 10)
@@ -56,33 +56,57 @@ const seedMembers: Member[] = [
   { id: 'm5', name: 'Mia Park', initials: 'MP', color: MEMBER_COLORS[4] },
 ]
 const seedSprints: Sprint[] = [
-  { id: 's1', name: 'Sprint 1 — Launch', goal: 'Ship the MVP to early users', startDate: iso(now), endDate: iso(now + 14 * day) },
-  { id: 's2', name: 'Sprint 2 — Polish', goal: 'Performance and UX polish', startDate: iso(now + 14 * day), endDate: iso(now + 28 * day) },
+  { id: 's0', name: 'Sprint 0 — Foundations', goal: 'Repo, CI and design system', startDate: iso(now - 20 * day), endDate: iso(now - 6 * day) },
+  { id: 's1', name: 'Sprint 1 — Launch', goal: 'Ship the MVP to early users', startDate: iso(now - 6 * day), endDate: iso(now + 8 * day) },
+  { id: 's2', name: 'Sprint 2 — Polish', goal: 'Performance and UX polish', startDate: iso(now + 8 * day), endDate: iso(now + 22 * day) },
 ]
-const mk = (title: string, status: Status, assigneeId: string | null, priority: Priority, sprintId = 's1', dueInDays?: number, subs: [string, boolean][] = []): Task => ({
-  id: uid(), sprintId, title, description: '', status, assigneeId, priority, createdAt: now,
-  dueDate: dueInDays === undefined ? undefined : iso(now + dueInDays * day),
-  completedAt: status === 'done' ? now : undefined,
-  subtasks: subs.map(([title, done]) => ({ id: uid(), title, done })),
-})
+const ORDER: Status[] = ['discuss', 'progress', 'ready', 'testing', 'done']
+/** Build a task whose history walks the rings in order, `daysPerStep` days per ring, starting `startDaysAgo` days ago */
+const mk = (title: string, status: Status, assigneeId: string | null, priority: Priority, sprintId = 's1', startDaysAgo = 6, daysPerStep = 1, dueInDays?: number, subs: [string, boolean][] = []): Task => {
+  const createdAt = now - startDaysAgo * day
+  const history: StatusChange[] = ORDER.slice(0, ORDER.indexOf(status) + 1).map((st, i) => ({
+    status: st,
+    at: Math.min(now, createdAt + i * daysPerStep * day),
+  }))
+  return {
+    id: uid(), sprintId, title, description: '', status, assigneeId, priority, createdAt,
+    completedAt: status === 'done' ? history[history.length - 1].at : undefined,
+    dueDate: dueInDays === undefined ? undefined : iso(now + dueInDays * day),
+    subtasks: subs.map(([title, done]) => ({ id: uid(), title, done })),
+    history,
+  }
+}
 const seedTasks: Task[] = [
+  mk('Repo & CI setup', 'done', 'm5', 'med', 's0', 20, 1),
+  mk('Design tokens', 'done', 'm3', 'med', 's0', 19, 2),
+  mk('Component library', 'done', 'm1', 'high', 's0', 18, 3),
+  mk('Error tracking', 'done', 'm2', 'low', 's0', 16, 2),
   mk('Define user personas', 'discuss', 'm1', 'med'),
-  mk('Pricing page copy', 'discuss', 'm4', 'low'),
-  mk('Pick analytics tool', 'discuss', null, 'low'),
-  mk('Auth flow', 'progress', 'm2', 'high', 's1', 1, [['Login form', true], ['OAuth providers', true], ['Password reset', false], ['Session refresh', false]]),
-  mk('Dashboard layout', 'progress', 'm3', 'med', 's1', 4, [['Grid system', true], ['Widgets', false]]),
-  mk('Email notifications', 'progress', 'm5', 'med'),
-  mk('Onboarding wizard', 'ready', 'm1', 'high', 's1', 10, [['Welcome step', true], ['Profile step', true], ['Invite team step', true]]),
-  mk('Settings page', 'ready', 'm2', 'low'),
-  mk('Payment integration', 'testing', 'm4', 'high', 's1', -2),
-  mk('Landing page', 'testing', 'm3', 'med'),
-  mk('Project setup', 'done', 'm5', 'low'),
-  mk('Polish animations', 'discuss', 'm3', 'med', 's2'),
+  mk('Pricing page copy', 'discuss', 'm4', 'low', 's1', 3),
+  mk('Pick analytics tool', 'discuss', null, 'low', 's1', 1),
+  mk('Auth flow', 'progress', 'm2', 'high', 's1', 6, 2, 1, [['Login form', true], ['OAuth providers', true], ['Password reset', false], ['Session refresh', false]]),
+  mk('Dashboard layout', 'progress', 'm3', 'med', 's1', 5, 2, 4, [['Grid system', true], ['Widgets', false]]),
+  mk('Email notifications', 'progress', 'm5', 'med', 's1', 4, 1),
+  mk('Onboarding wizard', 'ready', 'm1', 'high', 's1', 6, 1.5, 7, [['Welcome step', true], ['Profile step', true], ['Invite team step', true]]),
+  mk('Settings page', 'ready', 'm2', 'low', 's1', 5, 1),
+  mk('Payment integration', 'testing', 'm4', 'high', 's1', 6, 1, -2),
+  mk('Landing page', 'testing', 'm3', 'med', 's1', 6, 1.2),
+  mk('Project setup', 'done', 'm5', 'low', 's1', 6, 0.5),
+  mk('Marketing site SEO', 'done', 'm4', 'med', 's1', 6, 1),
+  mk('Feature flags', 'done', 'm2', 'low', 's1', 5, 0.8),
+  mk('Polish animations', 'discuss', 'm3', 'med', 's2', 0),
 ]
 
 const snap = (st: Snapshot): Snapshot => ({
   members: st.members, sprints: st.sprints, tasks: st.tasks, activeSprintId: st.activeSprintId,
 })
+/** Backfill a history for tasks persisted before status tracking existed */
+export const backfillHistory = (t: Omit<Task, 'history'> & { history?: StatusChange[] }): Task => {
+  if (t.history?.length) return t as Task
+  const history: StatusChange[] = [{ status: t.status === 'done' ? 'discuss' : t.status, at: t.createdAt }]
+  if (t.status === 'done') history.push({ status: 'done', at: t.completedAt ?? t.createdAt })
+  return { ...t, history }
+}
 
 export const useStore = create<State>()(
   persist(
@@ -144,6 +168,7 @@ export const useStore = create<State>()(
           completedAt: status === 'done' ? Date.now() : undefined,
           dueDate: t.dueDate || undefined,
           subtasks: t.subtasks ?? [],
+          history: [{ status, at: Date.now() }],
         }
         set((st) => ({ tasks: [...st.tasks, task] }))
         return id
@@ -152,8 +177,12 @@ export const useStore = create<State>()(
         set((st) => ({
           tasks: st.tasks.map((t) => {
             if (t.id !== id) return t
-            const next = { ...t, ...patch }
-            if (patch.status && patch.status !== t.status) next.completedAt = patch.status === 'done' ? Date.now() : undefined
+            const next = { ...t, ...patch, history: t.history }
+            if (patch.status && patch.status !== t.status) {
+              const at = Date.now()
+              next.completedAt = patch.status === 'done' ? at : undefined
+              next.history = [...(t.history ?? []), { status: patch.status, at }]
+            }
             return next
           }),
         })),
@@ -172,12 +201,14 @@ export const useStore = create<State>()(
     }},
     {
       name: 'orbit-pm-v1',
-      version: 1,
+      version: 2,
       partialize: ({ members, sprints, tasks, activeSprintId }) => ({ members, sprints, tasks, activeSprintId }),
       // v0 -> v1: tasks gained a `subtasks` checklist
+      // v1 -> v2: tasks gained a status `history`; backfill it from createdAt/completedAt
       migrate: (persisted, version) => {
         const st = persisted as { tasks?: Task[] }
         if (version < 1 && st?.tasks) st.tasks = st.tasks.map((t) => ({ ...t, subtasks: t.subtasks ?? [] }))
+        if (version < 2 && st?.tasks) st.tasks = st.tasks.map(backfillHistory)
         return st as State
       },
     },

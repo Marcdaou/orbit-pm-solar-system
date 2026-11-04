@@ -22,6 +22,12 @@ export interface Subtask {
   done: boolean
 }
 
+/** One entry per status the task entered, oldest first */
+export interface StatusChange {
+  status: Status
+  at: number
+}
+
 export interface Task {
   id: string
   sprintId: string
@@ -35,4 +41,5 @@ export interface Task {
   /** Optional deadline, YYYY-MM-DD */
   dueDate?: string
   subtasks: Subtask[]
+  history: StatusChange[]
 }

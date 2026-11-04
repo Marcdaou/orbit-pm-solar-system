@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useStore } from './store'
 import Header from './components/Header'
 import SolarSystem from './components/SolarSystem'
@@ -6,6 +6,7 @@ import CompletedPanel from './components/CompletedPanel'
 import TaskModal from './components/TaskModal'
 import SprintModal from './components/SprintModal'
 import TeamModal from './components/TeamModal'
+import AnalyticsPanel from './components/AnalyticsPanel'
 import FilterBar from './components/FilterBar'
 import { primaryBtn } from './components/Modal'
 import { EMPTY_FILTERS, matchesFilters, type TaskFilters } from './filters'
@@ -27,13 +28,15 @@ export default function App() {
   const [sprintOpen, setSprintOpen] = useState(false)
   const [sprintId, setSprintId] = useState<string | null>(null)
   const [teamOpen, setTeamOpen] = useState(false)
+  const [analyticsOpen, setAnalyticsOpen] = useState(false)
+  const closeAnalytics = useCallback(() => setAnalyticsOpen(false), [])
 
   const openTask = (id: string | null) => { setTaskId(id); setTaskOpen(true) }
   const openSprint = (id: string | null) => { setSprintId(id); setSprintOpen(true) }
 
   // Shortcuts: "N" new task; Ctrl/Cmd+Z undo; Ctrl/Cmd+Shift+Z or Ctrl+Y redo.
   // Ignored while typing (inputs keep native text undo) or when any modal is open.
-  const anyModalOpen = taskOpen || sprintOpen || teamOpen
+  const anyModalOpen = taskOpen || sprintOpen || teamOpen || analyticsOpen
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null
@@ -64,6 +67,7 @@ export default function App() {
         onNewSprint={() => openSprint(null)}
         onEditSprint={() => activeSprintId && openSprint(activeSprintId)}
         onTeam={() => setTeamOpen(true)}
+        onAnalytics={() => setAnalyticsOpen((o) => !o)}
         spotlight={spotlight}
         onSpotlight={onSpotlight}
       />
@@ -71,6 +75,7 @@ export default function App() {
         <SolarSystem onEditTask={(id) => openTask(id)} filters={filters} />
         {hasSprints && <FilterBar filters={filters} onChange={setFilters} matchCount={matchCount} total={orbiting.length} />}
         <CompletedPanel onEditTask={(id) => openTask(id)} />
+        <AnalyticsPanel open={analyticsOpen} onClose={closeAnalytics} />
         {!hasSprints && (
           <div className="absolute inset-0 z-10 flex items-center justify-center p-6">
             <div className="max-w-sm rounded-2xl border border-white/10 bg-slate-900/80 p-8 text-center shadow-2xl backdrop-blur">

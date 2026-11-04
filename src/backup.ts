@@ -1,4 +1,4 @@
-import type { Snapshot } from './store'
+import { backfillHistory, type Snapshot } from './store'
 
 const STATUSES = ['discuss', 'progress', 'ready', 'testing', 'done']
 const PRIORITIES = ['low', 'med', 'high']
@@ -36,7 +36,7 @@ export function parseBackup(text: string): Snapshot {
   return {
     members: members as Snapshot['members'],
     sprints: sprints.map((s) => ({ goal: '', startDate: '', endDate: '', ...(s as object) })) as Snapshot['sprints'],
-    tasks: tasks.map((t) => ({ description: '', assigneeId: null, createdAt: Date.now(), subtasks: [], ...(t as object) })) as unknown as Snapshot['tasks'],
+    tasks: tasks.map((t) => backfillHistory({ description: '', assigneeId: null, createdAt: Date.now(), subtasks: [], ...(t as object) } as unknown as Snapshot['tasks'][number])),
     activeSprintId: active,
   }
 }

@@ -8,6 +8,7 @@ interface Props {
   onNewSprint: () => void
   onEditSprint: () => void
   onTeam: () => void
+  onAnalytics: () => void
   spotlight: string | null
   onSpotlight: (id: string | null) => void
 }
@@ -15,7 +16,7 @@ interface Props {
 const fmt = (d: string) =>
   d ? new Date(d + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : ''
 
-export default function Header({ onNewTask, onNewSprint, onEditSprint, onTeam, spotlight, onSpotlight }: Props) {
+export default function Header({ onNewTask, onNewSprint, onEditSprint, onTeam, onAnalytics, spotlight, onSpotlight }: Props) {
   const { sprints, members, activeSprintId, setActiveSprint } = useStore()
   const sprint = sprints.find((s) => s.id === activeSprintId)
   const canUndo = useStore((s) => s.past.length > 0)
@@ -125,6 +126,7 @@ export default function Header({ onNewTask, onNewSprint, onEditSprint, onTeam, s
             </div>
           )}
         </div>
+        <button type="button" className={ghostBtn + ' !py-1.5'} onClick={onAnalytics} disabled={!sprint}>Analytics</button>
         <button type="button" className={ghostBtn + ' !py-1.5'} onClick={onTeam}>Team</button>
         <button type="button" className={primaryBtn + ' !py-1.5'} onClick={onNewTask} disabled={sprints.length === 0}>+ New task</button>
       </div>
