@@ -1,0 +1,29 @@
+export type Status = 'discuss' | 'progress' | 'ready' | 'testing' | 'done'
+export type Priority = 'low' | 'med' | 'high'
+
+export interface Member {
+  id: string
+  name: string
+  color: string
+  initials: string
+}
+
+export interface Sprint {
+  id: string
+  name: string
+  goal: string
+  startDate: string
+  endDate: string
+}
+
+export interface Task {
+  id: string
+  sprintId: string
+  title: string
+  description: string
+  status: Status
+  assigneeId: string | null
+  priority: Priority
+  createdAt: number
+  completedAt?: number
+}

@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+html, body, #root { height: 100%; margin: 0; }
+body { background: #05060f; color: #e5e7eb; font-family: ui-sans-serif, system-ui, sans-serif; overflow: hidden; }
+
+@keyframes sun-pulse { 0%,100% { transform: scale(1); filter: brightness(1); } 50% { transform: scale(1.06); filter: brightness(1.15); } }
+@keyframes corona { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes twinkle { 0%,100% { opacity: .2; } 50% { opacity: 1; } }
+/* --fly-x / --fly-y set inline: destination offset in px */
+@keyframes fly-out {
+  0%   { transform: translate(0,0) scale(1); opacity: 1; }
+  100% { transform: translate(var(--fly-x), var(--fly-y)) scale(.2); opacity: 0; }
+}
+.animate-sun-pulse { animation: sun-pulse 4s ease-in-out infinite; }
+.animate-corona { animation: corona 40s linear infinite; }
+.animate-twinkle { animation: twinkle 3s ease-in-out infinite; }
+.animate-fly-out { animation: fly-out 1.2s cubic-bezier(.5,0,1,.6) forwards; }
