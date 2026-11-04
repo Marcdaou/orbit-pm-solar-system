@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useStore } from '../store'
-import { ORBITS, PRIORITY_COLORS, PRIORITY_SIZES, STATUS_LABELS } from '../constants'
+import { MOON_GAP, MOON_SIZE, MOON_SPEED, ORBITS, PRIORITY_COLORS, PRIORITY_SIZES, STATUS_LABELS } from '../constants'
 import type { Task } from '../types'
+import { dueLabel, sprintElapsed, taskDecay } from '../decay'
 import Sun from './Sun'
 import OrbitRing from './OrbitRing'
 import TaskPlanet, { PlanetBody } from './TaskPlanet'
@@ -45,6 +46,8 @@ export default function SolarSystem({ onEditTask, filters }: Props) {
 
   const els = useRef(new Map<string, HTMLDivElement>())
   const angles = useRef(new Map<string, number>())
+  const moonEls = useRef(new Map<string, HTMLDivElement>())
+  const moonPhase = useRef(new Map<string, number>())
   const pos = useRef(new Map<string, { x: number; y: number }>())
   const hoveredRef = useRef<string | null>(null)
   const dragRef = useRef<DragState | null>(null)
@@ -53,6 +56,12 @@ export default function SolarSystem({ onEditTask, filters }: Props) {
   const [dragging, setDragging] = useState<string | null>(null)
   const [target, setTarget] = useState<string | null>(null) // 'o0'.. | 'eject'
   const [departing, setDeparting] = useState<Departing[]>([])
+  // coarse clock so warmth / overdue / sun dimming update without a reload
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 60_000)
+    return () => window.clearInterval(id)
+  }, [])
 
   const visible = useMemo(
     () => tasks.filter((t) => t.sprintId === activeSprintId && t.status !== 'done'),
@@ -61,11 +70,19 @@ export default function SolarSystem({ onEditTask, filters }: Props) {
   const filtering = isFiltering(filters)
   const visibleRef = useRef(visible)
   visibleRef.current = visible
+  const overdueIds = useMemo(
+    () => new Set(visible.filter((t) => taskDecay(t.dueDate, now).overdue).map((t) => t.id)),
+    [visible, now],
+  )
+  const overdueRef = useRef(overdueIds)
+  overdueRef.current = overdueIds
 
   const sprint = sprints.find((s) => s.id === activeSprintId)
   const sprintTasks = tasks.filter((t) => t.sprintId === activeSprintId)
   const doneCount = sprintTasks.filter((t) => t.status === 'done').length
   const percent = sprintTasks.length ? Math.round((doneCount / sprintTasks.length) * 100) : 0
+  const elapsed = sprint ? sprintElapsed(sprint.startDate, sprint.endDate, now) : null
+  const sprintLeft = sprint ? dueLabel(sprint.endDate, now).replace('Due', 'Ends').replace(/^Overdue by (.*)$/, 'Ended $1 ago') : undefined
 
   const cx = size.w / 2
   const cy = size.h / 2
@@ -107,6 +124,19 @@ export default function SolarSystem({ onEditTask, filters }: Props) {
           if (!angles.current.has(tk.id)) {
             angles.current.set(tk.id, (idx / counts[oi]) * Math.PI * 2 + oi * 0.9)
           }
+          // subtask moons orbit their planet (also while it is dragged; paused on hover)
+          const moons = moonEls.current.get(tk.id)
+          if (moons && moons.children.length) {
+            let ph = moonPhase.current.get(tk.id) ?? oi * 1.3 + idx
+            if (hoveredRef.current !== tk.id) ph += MOON_SPEED * dt
+            moonPhase.current.set(tk.id, ph)
+            const n = moons.children.length
+            const mr = PRIORITY_SIZES[tk.priority] / 2 + MOON_GAP + MOON_SIZE / 2
+            for (let i = 0; i < n; i++) {
+              const ma = ph + (i / n) * Math.PI * 2
+              ;(moons.children[i] as HTMLElement).style.transform = `translate(${mr * Math.cos(ma)}px, ${mr * Math.sin(ma) * 0.85}px)`
+            }
+          }
           const el = els.current.get(tk.id)
           if (!el || dragRef.current?.id === tk.id) continue
           let a = angles.current.get(tk.id)!
@@ -114,9 +144,17 @@ export default function SolarSystem({ onEditTask, filters }: Props) {
             a += ORBITS[oi].speed * dt
             angles.current.set(tk.id, a)
           }
-          const r = ORBITS[oi].radius * R
-          const x = w / 2 + r * Math.cos(a)
-          const y = h / 2 + r * Math.sin(a)
+          let r = ORBITS[oi].radius * R
+          let wa = a
+          if (overdueRef.current.has(tk.id)) {
+            // decaying orbit: radial wobble + slight angular jitter, phase-shifted per task
+            const ph = (tk.id.charCodeAt(0) + tk.id.charCodeAt(tk.id.length - 1)) * 0.7
+            const s = t / 1000
+            r += Math.sin(s * 5.5 + ph) * 7 + Math.sin(s * 13 + ph * 2) * 2.5
+            wa += Math.sin(s * 7 + ph) * 0.02
+          }
+          const x = w / 2 + r * Math.cos(wa)
+          const y = h / 2 + r * Math.sin(wa)
           pos.current.set(tk.id, { x, y })
           el.style.transform = `translate(${x}px, ${y}px)`
           el.style.visibility = 'visible'
@@ -155,6 +193,7 @@ export default function SolarSystem({ onEditTask, filters }: Props) {
       dy /= len
       pos.current.delete(task.id)
       angles.current.delete(task.id)
+      moonPhase.current.delete(task.id)
       return { key: `${task.id}-${Date.now()}`, task, x: p.x, y: p.y, fx: dx * dist, fy: dy * dist }
     })
     setDeparting((d) => [...d, ...entries])
@@ -183,6 +222,11 @@ export default function SolarSystem({ onEditTask, filters }: Props) {
     } else {
       els.current.delete(id)
     }
+  }
+
+  const registerMoons = (id: string, el: HTMLDivElement | null) => {
+    if (el) moonEls.current.set(id, el)
+    else moonEls.current.delete(id)
   }
 
   const localPoint = (e: React.PointerEvent) => {
@@ -324,17 +368,19 @@ export default function SolarSystem({ onEditTask, filters }: Props) {
             </div>
           ))}
 
-          <Sun size={Math.max(50, maxR * 0.3)} name={sprint?.name ?? 'No sprint'} percent={percent} done={doneCount} total={sprintTasks.length} />
+          <Sun size={Math.max(50, maxR * 0.3)} name={sprint?.name ?? 'No sprint'} percent={percent} done={doneCount} total={sprintTasks.length} elapsed={elapsed} daysLeftLabel={sprintLeft} />
 
           {visible.map((t) => (
             <TaskPlanet
               key={t.id}
               task={t}
               member={members.find((m) => m.id === t.assigneeId)}
+              now={now}
               dimmed={filtering && !matchesFilters(t, filters, members)}
               dragging={dragging === t.id}
               hovered={hover?.id === t.id}
               register={register}
+              registerMoons={registerMoons}
               onPointerDown={onPointerDown}
               onPointerMove={onPointerMove}
               onPointerUp={(e, id) => endDrag(e, id, false)}
@@ -378,6 +424,23 @@ export default function SolarSystem({ onEditTask, filters }: Props) {
               <span className="text-slate-500">Status: </span>
               {STATUS_LABELS[hoverTask.status]}
             </div>
+            {hoverTask.dueDate && (() => {
+              const dk = taskDecay(hoverTask.dueDate, now)
+              return (
+                <div>
+                  <span className="text-slate-500">Due: </span>
+                  <span className={dk.overdue ? 'text-red-400 font-semibold' : dk.heat > 0 ? 'text-orange-300' : ''}>
+                    {hoverTask.dueDate} · {dueLabel(hoverTask.dueDate, now)}
+                  </span>
+                </div>
+              )
+            })()}
+            {(hoverTask.subtasks?.length ?? 0) > 0 && (
+              <div>
+                <span className="text-slate-500">Subtasks: </span>
+                {hoverTask.subtasks.filter((st) => st.done).length}/{hoverTask.subtasks.length} done
+              </div>
+            )}
           </div>
         </div>
       )}

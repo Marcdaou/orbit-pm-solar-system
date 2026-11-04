@@ -36,7 +36,7 @@ export function parseBackup(text: string): Snapshot {
   return {
     members: members as Snapshot['members'],
     sprints: sprints.map((s) => ({ goal: '', startDate: '', endDate: '', ...(s as object) })) as Snapshot['sprints'],
-    tasks: tasks.map((t) => ({ description: '', assigneeId: null, createdAt: Date.now(), ...(t as object) })) as Snapshot['tasks'],
+    tasks: tasks.map((t) => ({ description: '', assigneeId: null, createdAt: Date.now(), subtasks: [], ...(t as object) })) as unknown as Snapshot['tasks'],
     activeSprintId: active,
   }
 }
