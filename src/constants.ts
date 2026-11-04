@@ -42,3 +42,9 @@ export const PRIORITY_SIZES: Record<Priority, number> = {
   med: 38,
   high: 54,
 }
+
+/** Subtask moons: diameter (px), gap from planet surface (px), angular speed (rad/s), finished-moon color */
+export const MOON_SIZE = 7
+export const MOON_GAP = 7
+export const MOON_SPEED = 1.6
+export const MOON_DONE_COLOR = '#4b5563'
