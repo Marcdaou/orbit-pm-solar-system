@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useStore } from '../store'
-import { ORBITS, PRIORITY_COLORS, PRIORITY_SIZES, STATUS_LABELS } from '../constants'
+import { MOON_GAP, MOON_SIZE, MOON_SPEED, ORBITS, PRIORITY_COLORS, PRIORITY_SIZES, STATUS_LABELS } from '../constants'
 import type { Task } from '../types'
 import { dueLabel, sprintElapsed, taskDecay } from '../decay'
 import Sun from './Sun'
@@ -46,6 +46,8 @@ export default function SolarSystem({ onEditTask, filters }: Props) {
 
   const els = useRef(new Map<string, HTMLDivElement>())
   const angles = useRef(new Map<string, number>())
+  const moonEls = useRef(new Map<string, HTMLDivElement>())
+  const moonPhase = useRef(new Map<string, number>())
   const pos = useRef(new Map<string, { x: number; y: number }>())
   const hoveredRef = useRef<string | null>(null)
   const dragRef = useRef<DragState | null>(null)
@@ -122,6 +124,19 @@ export default function SolarSystem({ onEditTask, filters }: Props) {
           if (!angles.current.has(tk.id)) {
             angles.current.set(tk.id, (idx / counts[oi]) * Math.PI * 2 + oi * 0.9)
           }
+          // subtask moons orbit their planet (also while it is dragged; paused on hover)
+          const moons = moonEls.current.get(tk.id)
+          if (moons && moons.children.length) {
+            let ph = moonPhase.current.get(tk.id) ?? oi * 1.3 + idx
+            if (hoveredRef.current !== tk.id) ph += MOON_SPEED * dt
+            moonPhase.current.set(tk.id, ph)
+            const n = moons.children.length
+            const mr = PRIORITY_SIZES[tk.priority] / 2 + MOON_GAP + MOON_SIZE / 2
+            for (let i = 0; i < n; i++) {
+              const ma = ph + (i / n) * Math.PI * 2
+              ;(moons.children[i] as HTMLElement).style.transform = `translate(${mr * Math.cos(ma)}px, ${mr * Math.sin(ma) * 0.85}px)`
+            }
+          }
           const el = els.current.get(tk.id)
           if (!el || dragRef.current?.id === tk.id) continue
           let a = angles.current.get(tk.id)!
@@ -178,6 +193,7 @@ export default function SolarSystem({ onEditTask, filters }: Props) {
       dy /= len
       pos.current.delete(task.id)
       angles.current.delete(task.id)
+      moonPhase.current.delete(task.id)
       return { key: `${task.id}-${Date.now()}`, task, x: p.x, y: p.y, fx: dx * dist, fy: dy * dist }
     })
     setDeparting((d) => [...d, ...entries])
@@ -206,6 +222,11 @@ export default function SolarSystem({ onEditTask, filters }: Props) {
     } else {
       els.current.delete(id)
     }
+  }
+
+  const registerMoons = (id: string, el: HTMLDivElement | null) => {
+    if (el) moonEls.current.set(id, el)
+    else moonEls.current.delete(id)
   }
 
   const localPoint = (e: React.PointerEvent) => {
@@ -341,6 +362,7 @@ export default function SolarSystem({ onEditTask, filters }: Props) {
               dragging={dragging === t.id}
               hovered={hover?.id === t.id}
               register={register}
+              registerMoons={registerMoons}
               onPointerDown={onPointerDown}
               onPointerMove={onPointerMove}
               onPointerUp={(e, id) => endDrag(e, id, false)}
@@ -395,6 +417,12 @@ export default function SolarSystem({ onEditTask, filters }: Props) {
                 </div>
               )
             })()}
+            {(hoverTask.subtasks?.length ?? 0) > 0 && (
+              <div>
+                <span className="text-slate-500">Subtasks: </span>
+                {hoverTask.subtasks.filter((st) => st.done).length}/{hoverTask.subtasks.length} done
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -1,9 +1,9 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { Member, Priority, Sprint, Status, Task } from './types'
+import type { Member, Priority, Sprint, Status, Subtask, Task } from './types'
 import { MEMBER_COLORS } from './constants'
 
-const uid = () => Math.random().toString(36).slice(2, 10)
+export const uid = () => Math.random().toString(36).slice(2, 10)
 const initialsOf = (name: string) =>
   name.trim().split(/\s+/).map((p) => p[0]?.toUpperCase() ?? '').slice(0, 2).join('') || '?'
 
@@ -18,7 +18,7 @@ interface State {
   updateSprint: (id: string, patch: Partial<Omit<Sprint, 'id'>>) => void
   deleteSprint: (id: string) => void
 
-  addTask: (t: { sprintId: string; title: string; description?: string; status?: Status; assigneeId?: string | null; priority?: Priority; dueDate?: string }) => string
+  addTask: (t: { sprintId: string; title: string; description?: string; status?: Status; assigneeId?: string | null; priority?: Priority; dueDate?: string; subtasks?: Subtask[] }) => string
   updateTask: (id: string, patch: Partial<Omit<Task, 'id'>>) => void
   deleteTask: (id: string) => void
   moveTask: (id: string, status: Status) => void
@@ -42,19 +42,20 @@ const seedSprints: Sprint[] = [
   { id: 's1', name: 'Sprint 1 — Launch', goal: 'Ship the MVP to early users', startDate: iso(now), endDate: iso(now + 14 * day) },
   { id: 's2', name: 'Sprint 2 — Polish', goal: 'Performance and UX polish', startDate: iso(now + 14 * day), endDate: iso(now + 28 * day) },
 ]
-const mk = (title: string, status: Status, assigneeId: string | null, priority: Priority, sprintId = 's1', dueInDays?: number): Task => ({
+const mk = (title: string, status: Status, assigneeId: string | null, priority: Priority, sprintId = 's1', dueInDays?: number, subs: [string, boolean][] = []): Task => ({
   id: uid(), sprintId, title, description: '', status, assigneeId, priority, createdAt: now,
   dueDate: dueInDays === undefined ? undefined : iso(now + dueInDays * day),
   completedAt: status === 'done' ? now : undefined,
+  subtasks: subs.map(([title, done]) => ({ id: uid(), title, done })),
 })
 const seedTasks: Task[] = [
   mk('Define user personas', 'discuss', 'm1', 'med'),
   mk('Pricing page copy', 'discuss', 'm4', 'low'),
   mk('Pick analytics tool', 'discuss', null, 'low'),
-  mk('Auth flow', 'progress', 'm2', 'high', 's1', 1),
-  mk('Dashboard layout', 'progress', 'm3', 'med', 's1', 4),
+  mk('Auth flow', 'progress', 'm2', 'high', 's1', 1, [['Login form', true], ['OAuth providers', true], ['Password reset', false], ['Session refresh', false]]),
+  mk('Dashboard layout', 'progress', 'm3', 'med', 's1', 4, [['Grid system', true], ['Widgets', false]]),
   mk('Email notifications', 'progress', 'm5', 'med'),
-  mk('Onboarding wizard', 'ready', 'm1', 'high', 's1', 10),
+  mk('Onboarding wizard', 'ready', 'm1', 'high', 's1', 10, [['Welcome step', true], ['Profile step', true], ['Invite team step', true]]),
   mk('Settings page', 'ready', 'm2', 'low'),
   mk('Payment integration', 'testing', 'm4', 'high', 's1', -2),
   mk('Landing page', 'testing', 'm3', 'med'),
@@ -95,6 +96,7 @@ export const useStore = create<State>()(
           assigneeId: t.assigneeId ?? null, priority: t.priority ?? 'med', createdAt: Date.now(),
           completedAt: status === 'done' ? Date.now() : undefined,
           dueDate: t.dueDate || undefined,
+          subtasks: t.subtasks ?? [],
         }
         set((st) => ({ tasks: [...st.tasks, task] }))
         return id
@@ -121,6 +123,15 @@ export const useStore = create<State>()(
           tasks: st.tasks.map((t) => (t.assigneeId === id ? { ...t, assigneeId: null } : t)),
         })),
     }),
-    { name: 'orbit-pm-v1' },
+    {
+      name: 'orbit-pm-v1',
+      version: 1,
+      // v0 -> v1: tasks gained a `subtasks` checklist
+      migrate: (persisted, version) => {
+        const st = persisted as { tasks?: Task[] }
+        if (version < 1 && st?.tasks) st.tasks = st.tasks.map((t) => ({ ...t, subtasks: t.subtasks ?? [] }))
+        return st as State
+      },
+    },
   ),
 )

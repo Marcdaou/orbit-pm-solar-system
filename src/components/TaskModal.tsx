@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { useStore } from '../store'
+import { uid, useStore } from '../store'
 import { PRIORITY_COLORS, STATUS_LABELS } from '../constants'
-import type { Priority, Status } from '../types'
+import type { Priority, Status, Subtask } from '../types'
 import Modal, { dangerBtn, ghostBtn, inputCls, labelCls, primaryBtn } from './Modal'
 
 interface Props {
@@ -25,10 +25,13 @@ export default function TaskModal({ open, taskId, onClose }: Props) {
   const [sprintId, setSprintId] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [subtasks, setSubtasks] = useState<Subtask[]>([])
+  const [newSub, setNewSub] = useState('')
 
   useEffect(() => {
     if (!open) return
     setConfirmDelete(false)
+    setNewSub('')
     if (task) {
       setTitle(task.title)
       setDescription(task.description)
@@ -37,6 +40,7 @@ export default function TaskModal({ open, taskId, onClose }: Props) {
       setPriority(task.priority)
       setSprintId(task.sprintId)
       setDueDate(task.dueDate ?? '')
+      setSubtasks(task.subtasks ?? [])
     } else {
       setTitle('')
       setDescription('')
@@ -45,18 +49,29 @@ export default function TaskModal({ open, taskId, onClose }: Props) {
       setPriority('med')
       setSprintId(activeSprintId ?? sprints[0]?.id ?? '')
       setDueDate('')
+      setSubtasks([])
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, taskId])
 
   const canSave = title.trim().length > 0 && sprintId !== ''
 
+  const doneSubs = subtasks.filter((st) => st.done).length
+  const subPercent = subtasks.length ? Math.round((doneSubs / subtasks.length) * 100) : 0
+  const addSub = () => {
+    const t = newSub.trim()
+    if (!t) return
+    setSubtasks((s) => [...s, { id: uid(), title: t, done: false }])
+    setNewSub('')
+  }
+
   const save = () => {
     if (!canSave) return
+    const subs = subtasks.filter((st) => st.title.trim()).map((st) => ({ ...st, title: st.title.trim() }))
     if (taskId && task) {
-      updateTask(taskId, { title: title.trim(), description, status, assigneeId, priority, sprintId, dueDate: dueDate || undefined })
+      updateTask(taskId, { title: title.trim(), description, status, assigneeId, priority, sprintId, dueDate: dueDate || undefined, subtasks: subs })
     } else {
-      addTask({ sprintId, title: title.trim(), description, status, assigneeId, priority, dueDate: dueDate || undefined })
+      addTask({ sprintId, title: title.trim(), description, status, assigneeId, priority, dueDate: dueDate || undefined, subtasks: subs })
     }
     onClose()
   }
@@ -138,6 +153,60 @@ export default function TaskModal({ open, taskId, onClose }: Props) {
                 <button type="button" className={ghostBtn + ' px-2'} onClick={() => setDueDate('')} title="Clear due date">✕</button>
               )}
             </div>
+          </div>
+        </div>
+
+        <div>
+          <div className="flex items-baseline justify-between">
+            <label className={labelCls}>Subtasks (moons)</label>
+            {subtasks.length > 0 && (
+              <span className="text-xs text-slate-400" data-testid="subtask-progress-label">{doneSubs}/{subtasks.length} · {subPercent}%</span>
+            )}
+          </div>
+          {subtasks.length > 0 && (
+            <div className="mb-2 h-1.5 w-full overflow-hidden rounded-full bg-white/10" role="progressbar" aria-valuenow={subPercent} aria-valuemin={0} aria-valuemax={100}>
+              <div className="h-full rounded-full bg-gradient-to-r from-sky-400 to-emerald-400 transition-all duration-300" style={{ width: `${subPercent}%` }} />
+            </div>
+          )}
+          <ul className="max-h-40 space-y-1 overflow-y-auto">
+            {subtasks.map((st) => (
+              <li key={st.id} className="group flex items-center gap-2 rounded-md px-1 py-0.5 hover:bg-white/5">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 accent-emerald-400"
+                  checked={st.done}
+                  onChange={() => setSubtasks((s) => s.map((x) => (x.id === st.id ? { ...x, done: !x.done } : x)))}
+                />
+                <input
+                  className={`flex-1 bg-transparent text-sm outline-none ${st.done ? 'text-slate-500 line-through' : 'text-slate-200'}`}
+                  value={st.title}
+                  onChange={(e) => setSubtasks((s) => s.map((x) => (x.id === st.id ? { ...x, title: e.target.value } : x)))}
+                />
+                <button
+                  type="button"
+                  aria-label="Remove subtask"
+                  className="px-1 text-slate-500 opacity-0 transition hover:text-red-300 group-hover:opacity-100"
+                  onClick={() => setSubtasks((s) => s.filter((x) => x.id !== st.id))}
+                >
+                  ✕
+                </button>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-1 flex gap-2">
+            <input
+              className={inputCls}
+              value={newSub}
+              onChange={(e) => setNewSub(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  addSub()
+                }
+              }}
+              placeholder="Add a subtask and press Enter"
+            />
+            <button type="button" className={ghostBtn} onClick={addSub} disabled={!newSub.trim()}>Add</button>
           </div>
         </div>
 

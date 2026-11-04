@@ -16,6 +16,12 @@ export interface Sprint {
   endDate: string
 }
 
+export interface Subtask {
+  id: string
+  title: string
+  done: boolean
+}
+
 export interface Task {
   id: string
   sprintId: string
@@ -28,4 +34,5 @@ export interface Task {
   completedAt?: number
   /** Optional deadline, YYYY-MM-DD */
   dueDate?: string
+  subtasks: Subtask[]
 }
