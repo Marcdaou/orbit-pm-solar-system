@@ -18,7 +18,7 @@ interface State {
   updateSprint: (id: string, patch: Partial<Omit<Sprint, 'id'>>) => void
   deleteSprint: (id: string) => void
 
-  addTask: (t: { sprintId: string; title: string; description?: string; status?: Status; assigneeId?: string | null; priority?: Priority }) => string
+  addTask: (t: { sprintId: string; title: string; description?: string; status?: Status; assigneeId?: string | null; priority?: Priority; dueDate?: string }) => string
   updateTask: (id: string, patch: Partial<Omit<Task, 'id'>>) => void
   deleteTask: (id: string) => void
   moveTask: (id: string, status: Status) => void
@@ -42,20 +42,21 @@ const seedSprints: Sprint[] = [
   { id: 's1', name: 'Sprint 1 — Launch', goal: 'Ship the MVP to early users', startDate: iso(now), endDate: iso(now + 14 * day) },
   { id: 's2', name: 'Sprint 2 — Polish', goal: 'Performance and UX polish', startDate: iso(now + 14 * day), endDate: iso(now + 28 * day) },
 ]
-const mk = (title: string, status: Status, assigneeId: string | null, priority: Priority, sprintId = 's1'): Task => ({
+const mk = (title: string, status: Status, assigneeId: string | null, priority: Priority, sprintId = 's1', dueInDays?: number): Task => ({
   id: uid(), sprintId, title, description: '', status, assigneeId, priority, createdAt: now,
+  dueDate: dueInDays === undefined ? undefined : iso(now + dueInDays * day),
   completedAt: status === 'done' ? now : undefined,
 })
 const seedTasks: Task[] = [
   mk('Define user personas', 'discuss', 'm1', 'med'),
   mk('Pricing page copy', 'discuss', 'm4', 'low'),
   mk('Pick analytics tool', 'discuss', null, 'low'),
-  mk('Auth flow', 'progress', 'm2', 'high'),
-  mk('Dashboard layout', 'progress', 'm3', 'med'),
+  mk('Auth flow', 'progress', 'm2', 'high', 's1', 1),
+  mk('Dashboard layout', 'progress', 'm3', 'med', 's1', 4),
   mk('Email notifications', 'progress', 'm5', 'med'),
-  mk('Onboarding wizard', 'ready', 'm1', 'high'),
+  mk('Onboarding wizard', 'ready', 'm1', 'high', 's1', 10),
   mk('Settings page', 'ready', 'm2', 'low'),
-  mk('Payment integration', 'testing', 'm4', 'high'),
+  mk('Payment integration', 'testing', 'm4', 'high', 's1', -2),
   mk('Landing page', 'testing', 'm3', 'med'),
   mk('Project setup', 'done', 'm5', 'low'),
   mk('Polish animations', 'discuss', 'm3', 'med', 's2'),
@@ -93,6 +94,7 @@ export const useStore = create<State>()(
           id, sprintId: t.sprintId, title: t.title, description: t.description ?? '', status,
           assigneeId: t.assigneeId ?? null, priority: t.priority ?? 'med', createdAt: Date.now(),
           completedAt: status === 'done' ? Date.now() : undefined,
+          dueDate: t.dueDate || undefined,
         }
         set((st) => ({ tasks: [...st.tasks, task] }))
         return id

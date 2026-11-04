@@ -26,4 +26,6 @@ export interface Task {
   priority: Priority
   createdAt: number
   completedAt?: number
+  /** Optional deadline, YYYY-MM-DD */
+  dueDate?: string
 }

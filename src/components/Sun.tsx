@@ -4,13 +4,29 @@ interface Props {
   percent: number
   done: number
   total: number
+  /** fraction of sprint elapsed (0..1+), null = unknown */
+  elapsed?: number | null
+  daysLeftLabel?: string
 }
 
-export default function Sun({ size, name, percent, done, total }: Props) {
+export default function Sun({ size, name, percent, done, total, elapsed = null, daysLeftLabel }: Props) {
+  // Sun dims as the sprint runs out: full brightness for the first 40%, then fades.
+  // Once the sprint is over it turns a dull red dwarf.
+  const e = elapsed ?? 0
+  const fade = Math.max(0, Math.min(1, (e - 0.4) / 0.6))
+  const over = e > 1
+  const brightness = over ? 0.45 : 1 - fade * 0.45
+  const saturate = over ? 0.6 : 1 - fade * 0.35
+  const hue = over ? -18 : -fade * 10
   return (
     <div
       className="absolute pointer-events-none z-10"
-      style={{ left: '50%', top: '50%', width: size, height: size, marginLeft: -size / 2, marginTop: -size / 2 }}
+      data-sun-brightness={brightness.toFixed(2)}
+      style={{
+        left: '50%', top: '50%', width: size, height: size, marginLeft: -size / 2, marginTop: -size / 2,
+        filter: `brightness(${brightness}) saturate(${saturate}) hue-rotate(${hue}deg)`,
+        transition: 'filter 1s',
+      }}
     >
       {/* rotating corona */}
       <div
@@ -45,6 +61,7 @@ export default function Sun({ size, name, percent, done, total }: Props) {
         style={{ top: size + 6, transform: 'translateX(-50%)', maxWidth: size * 1.6, textShadow: '0 0 6px #000' }}
       >
         {name}
+        {daysLeftLabel && <div className={`font-normal ${over ? 'text-red-300' : 'text-amber-200/70'}`}>{daysLeftLabel}</div>}
       </div>
     </div>
   )

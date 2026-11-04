@@ -23,6 +23,7 @@ export default function TaskModal({ open, taskId, onClose }: Props) {
   const [assigneeId, setAssigneeId] = useState<string | null>(null)
   const [priority, setPriority] = useState<Priority>('med')
   const [sprintId, setSprintId] = useState('')
+  const [dueDate, setDueDate] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   useEffect(() => {
@@ -35,6 +36,7 @@ export default function TaskModal({ open, taskId, onClose }: Props) {
       setAssigneeId(task.assigneeId)
       setPriority(task.priority)
       setSprintId(task.sprintId)
+      setDueDate(task.dueDate ?? '')
     } else {
       setTitle('')
       setDescription('')
@@ -42,6 +44,7 @@ export default function TaskModal({ open, taskId, onClose }: Props) {
       setAssigneeId(null)
       setPriority('med')
       setSprintId(activeSprintId ?? sprints[0]?.id ?? '')
+      setDueDate('')
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, taskId])
@@ -51,9 +54,9 @@ export default function TaskModal({ open, taskId, onClose }: Props) {
   const save = () => {
     if (!canSave) return
     if (taskId && task) {
-      updateTask(taskId, { title: title.trim(), description, status, assigneeId, priority, sprintId })
+      updateTask(taskId, { title: title.trim(), description, status, assigneeId, priority, sprintId, dueDate: dueDate || undefined })
     } else {
-      addTask({ sprintId, title: title.trim(), description, status, assigneeId, priority })
+      addTask({ sprintId, title: title.trim(), description, status, assigneeId, priority, dueDate: dueDate || undefined })
     }
     onClose()
   }
@@ -118,13 +121,24 @@ export default function TaskModal({ open, taskId, onClose }: Props) {
             })}
           </div>
         </div>
-        <div>
-          <label className={labelCls}>Sprint</label>
-          <select className={inputCls} value={sprintId} onChange={(e) => setSprintId(e.target.value)}>
-            {sprints.map((s) => (
-              <option key={s.id} value={s.id} className="bg-slate-900">{s.name}</option>
-            ))}
-          </select>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className={labelCls}>Sprint</label>
+            <select className={inputCls} value={sprintId} onChange={(e) => setSprintId(e.target.value)}>
+              {sprints.map((s) => (
+                <option key={s.id} value={s.id} className="bg-slate-900">{s.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={labelCls}>Due date</label>
+            <div className="flex gap-1">
+              <input type="date" className={inputCls + ' [color-scheme:dark]'} value={dueDate} onChange={(e) => setDueDate(e.target.value)} aria-label="Due date" />
+              {dueDate && (
+                <button type="button" className={ghostBtn + ' px-2'} onClick={() => setDueDate('')} title="Clear due date">✕</button>
+              )}
+            </div>
+          </div>
         </div>
 
         <div className="flex items-center justify-between gap-2 pt-2">
