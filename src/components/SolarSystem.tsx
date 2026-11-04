@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react'
 import { useStore } from '../store'
 import { ORBITS, PRIORITY_COLORS, PRIORITY_SIZES, STATUS_LABELS } from '../constants'
 import type { Task } from '../types'
+import { dueLabel, sprintElapsed, taskDecay } from '../decay'
 import Sun from './Sun'
 import OrbitRing from './OrbitRing'
 import TaskPlanet, { PlanetBody } from './TaskPlanet'
@@ -53,6 +54,12 @@ export default function SolarSystem({ onEditTask, filters }: Props) {
   const [dragging, setDragging] = useState<string | null>(null)
   const [target, setTarget] = useState<string | null>(null) // 'o0'.. | 'eject'
   const [departing, setDeparting] = useState<Departing[]>([])
+  // coarse clock so warmth / overdue / sun dimming update without a reload
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 60_000)
+    return () => window.clearInterval(id)
+  }, [])
 
   const visible = useMemo(
     () => tasks.filter((t) => t.sprintId === activeSprintId && t.status !== 'done'),
@@ -61,11 +68,19 @@ export default function SolarSystem({ onEditTask, filters }: Props) {
   const filtering = isFiltering(filters)
   const visibleRef = useRef(visible)
   visibleRef.current = visible
+  const overdueIds = useMemo(
+    () => new Set(visible.filter((t) => taskDecay(t.dueDate, now).overdue).map((t) => t.id)),
+    [visible, now],
+  )
+  const overdueRef = useRef(overdueIds)
+  overdueRef.current = overdueIds
 
   const sprint = sprints.find((s) => s.id === activeSprintId)
   const sprintTasks = tasks.filter((t) => t.sprintId === activeSprintId)
   const doneCount = sprintTasks.filter((t) => t.status === 'done').length
   const percent = sprintTasks.length ? Math.round((doneCount / sprintTasks.length) * 100) : 0
+  const elapsed = sprint ? sprintElapsed(sprint.startDate, sprint.endDate, now) : null
+  const sprintLeft = sprint ? dueLabel(sprint.endDate, now).replace('Due', 'Ends').replace(/^Overdue by (.*)$/, 'Ended $1 ago') : undefined
 
   const cx = size.w / 2
   const cy = size.h / 2
@@ -114,9 +129,17 @@ export default function SolarSystem({ onEditTask, filters }: Props) {
             a += ORBITS[oi].speed * dt
             angles.current.set(tk.id, a)
           }
-          const r = ORBITS[oi].radius * R
-          const x = w / 2 + r * Math.cos(a)
-          const y = h / 2 + r * Math.sin(a)
+          let r = ORBITS[oi].radius * R
+          let wa = a
+          if (overdueRef.current.has(tk.id)) {
+            // decaying orbit: radial wobble + slight angular jitter, phase-shifted per task
+            const ph = (tk.id.charCodeAt(0) + tk.id.charCodeAt(tk.id.length - 1)) * 0.7
+            const s = t / 1000
+            r += Math.sin(s * 5.5 + ph) * 7 + Math.sin(s * 13 + ph * 2) * 2.5
+            wa += Math.sin(s * 7 + ph) * 0.02
+          }
+          const x = w / 2 + r * Math.cos(wa)
+          const y = h / 2 + r * Math.sin(wa)
           pos.current.set(tk.id, { x, y })
           el.style.transform = `translate(${x}px, ${y}px)`
           el.style.visibility = 'visible'
@@ -306,13 +329,14 @@ export default function SolarSystem({ onEditTask, filters }: Props) {
             </div>
           ))}
 
-          <Sun size={Math.max(50, maxR * 0.3)} name={sprint?.name ?? 'No sprint'} percent={percent} done={doneCount} total={sprintTasks.length} />
+          <Sun size={Math.max(50, maxR * 0.3)} name={sprint?.name ?? 'No sprint'} percent={percent} done={doneCount} total={sprintTasks.length} elapsed={elapsed} daysLeftLabel={sprintLeft} />
 
           {visible.map((t) => (
             <TaskPlanet
               key={t.id}
               task={t}
               member={members.find((m) => m.id === t.assigneeId)}
+              now={now}
               dimmed={filtering && !matchesFilters(t, filters, members)}
               dragging={dragging === t.id}
               hovered={hover?.id === t.id}
@@ -360,6 +384,17 @@ export default function SolarSystem({ onEditTask, filters }: Props) {
               <span className="text-slate-500">Status: </span>
               {STATUS_LABELS[hoverTask.status]}
             </div>
+            {hoverTask.dueDate && (() => {
+              const dk = taskDecay(hoverTask.dueDate, now)
+              return (
+                <div>
+                  <span className="text-slate-500">Due: </span>
+                  <span className={dk.overdue ? 'text-red-400 font-semibold' : dk.heat > 0 ? 'text-orange-300' : ''}>
+                    {hoverTask.dueDate} · {dueLabel(hoverTask.dueDate, now)}
+                  </span>
+                </div>
+              )
+            })()}
           </div>
         </div>
       )}
