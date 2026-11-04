@@ -23,6 +23,15 @@ export default function App() {
   // Clicking an avatar spotlights only that member; clicking it again clears the spotlight
   const spotlight = filters.assignees.length === 1 ? filters.assignees[0] : null
   const onSpotlight = (id: string | null) => setFilters((f) => ({ ...f, assignees: id ? [id] : [] }))
+  // Browser tab title mirrors active sprint progress, e.g. "62% · Sprint 1 — Orbit PM"
+  const sprintName = useStore((s) => s.sprints.find((sp) => sp.id === s.activeSprintId)?.name)
+  const sprintTasks = tasks.filter((t) => t.sprintId === activeSprintId)
+  const sprintDone = sprintTasks.filter((t) => t.status === 'done').length
+  const titlePercent = sprintTasks.length ? Math.round((sprintDone / sprintTasks.length) * 100) : 0
+  useEffect(() => {
+    document.title = sprintName ? `${titlePercent}% · ${sprintName} — Orbit PM` : 'Orbit PM'
+  }, [sprintName, titlePercent])
+
   const [taskOpen, setTaskOpen] = useState(false)
   const [taskId, setTaskId] = useState<string | null>(null)
   const [sprintOpen, setSprintOpen] = useState(false)
