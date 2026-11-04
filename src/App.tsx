@@ -31,14 +31,24 @@ export default function App() {
   const openTask = (id: string | null) => { setTaskId(id); setTaskOpen(true) }
   const openSprint = (id: string | null) => { setSprintId(id); setSprintOpen(true) }
 
-  // Press "N" to create a new task (ignored while typing or when any modal is open)
+  // Shortcuts: "N" new task; Ctrl/Cmd+Z undo; Ctrl/Cmd+Shift+Z or Ctrl+Y redo.
+  // Ignored while typing (inputs keep native text undo) or when any modal is open.
   const anyModalOpen = taskOpen || sprintOpen || teamOpen
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key.toLowerCase() !== 'n' || e.metaKey || e.ctrlKey || e.altKey) return
       const t = e.target as HTMLElement | null
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return
-      if (anyModalOpen || !hasSprints) return
+      if (anyModalOpen) return
+      const k = e.key.toLowerCase()
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && (k === 'z' || k === 'y')) {
+        e.preventDefault()
+        const { undo, redo } = useStore.getState()
+        if (k === 'y' || e.shiftKey) redo()
+        else undo()
+        return
+      }
+      if (k !== 'n' || e.metaKey || e.ctrlKey || e.altKey) return
+      if (!hasSprints) return
       e.preventDefault()
       setTaskId(null)
       setTaskOpen(true)

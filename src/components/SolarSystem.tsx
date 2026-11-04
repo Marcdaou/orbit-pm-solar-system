@@ -251,6 +251,24 @@ export default function SolarSystem({ onEditTask, filters }: Props) {
     moveTask(id, c.eject ? 'done' : ORBITS[c.orbit].status)
   }
 
+  // Keys 1–4 send the hovered planet to that ring (inner → outer)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const n = Number(e.key)
+      if (!(n >= 1 && n <= ORBITS.length) || e.metaKey || e.ctrlKey || e.altKey) return
+      const t = e.target as HTMLElement | null
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return
+      if (document.querySelector('[role="dialog"]') || dragRef.current) return
+      const id = hoveredRef.current
+      if (!id) return
+      e.preventDefault()
+      const status = ORBITS[n - 1].status
+      if (visibleRef.current.find((tk) => tk.id === id)?.status !== status) moveTask(id, status)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [moveTask])
+
   const onEnter = (id: string) => {
     if (dragRef.current) return
     hoveredRef.current = id

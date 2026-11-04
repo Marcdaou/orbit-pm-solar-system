@@ -7,7 +7,24 @@ const uid = () => Math.random().toString(36).slice(2, 10)
 const initialsOf = (name: string) =>
   name.trim().split(/\s+/).map((p) => p[0]?.toUpperCase() ?? '').slice(0, 2).join('') || '?'
 
+export interface Snapshot {
+  members: Member[]
+  sprints: Sprint[]
+  tasks: Task[]
+  activeSprintId: string | null
+}
+
+const HISTORY_LIMIT = 100
+
 interface State {
+  /** Undo/redo stacks of data snapshots. Not persisted (see partialize). */
+  past: Snapshot[]
+  future: Snapshot[]
+  undo: () => void
+  redo: () => void
+  /** Replace all data (JSON import). Undoable. */
+  replaceAll: (data: Snapshot) => void
+
   members: Member[]
   sprints: Sprint[]
   tasks: Task[]
@@ -61,15 +78,45 @@ const seedTasks: Task[] = [
   mk('Polish animations', 'discuss', 'm3', 'med', 's2'),
 ]
 
+const snap = (st: Snapshot): Snapshot => ({
+  members: st.members, sprints: st.sprints, tasks: st.tasks, activeSprintId: st.activeSprintId,
+})
+
 export const useStore = create<State>()(
   persist(
-    (set, get) => ({
+    (rawSet, get) => {
+      // Every data mutation goes through `set`, which first records an undo snapshot.
+      // State is immutable, so a snapshot is just the current references.
+      type Upd = Partial<State> | ((st: State) => Partial<State>)
+      const set = (u: Upd) =>
+        rawSet((st) => ({
+          ...(typeof u === 'function' ? u(st) : u),
+          past: [...st.past, snap(st)].slice(-HISTORY_LIMIT),
+          future: [],
+        }))
+      return {
+      past: [],
+      future: [],
+      undo: () =>
+        rawSet((st) => {
+          const prev = st.past[st.past.length - 1]
+          if (!prev) return {}
+          return { ...prev, past: st.past.slice(0, -1), future: [snap(st), ...st.future] }
+        }),
+      redo: () =>
+        rawSet((st) => {
+          const next = st.future[0]
+          if (!next) return {}
+          return { ...next, past: [...st.past, snap(st)], future: st.future.slice(1) }
+        }),
+      replaceAll: (data) => set(snap(data)),
+
       members: seedMembers,
       sprints: seedSprints,
       tasks: seedTasks,
       activeSprintId: 's1',
 
-      setActiveSprint: (id) => set({ activeSprintId: id }),
+      setActiveSprint: (id) => rawSet({ activeSprintId: id }),
       addSprint: (s) => {
         const id = uid()
         set((st) => ({ sprints: [...st.sprints, { ...s, id }], activeSprintId: id }))
@@ -118,7 +165,10 @@ export const useStore = create<State>()(
           members: st.members.filter((m) => m.id !== id),
           tasks: st.tasks.map((t) => (t.assigneeId === id ? { ...t, assigneeId: null } : t)),
         })),
-    }),
-    { name: 'orbit-pm-v1' },
+    }},
+    {
+      name: 'orbit-pm-v1',
+      partialize: ({ members, sprints, tasks, activeSprintId }) => ({ members, sprints, tasks, activeSprintId }),
+    },
   ),
 )
