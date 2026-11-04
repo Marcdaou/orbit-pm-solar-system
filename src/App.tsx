@@ -6,13 +6,22 @@ import CompletedPanel from './components/CompletedPanel'
 import TaskModal from './components/TaskModal'
 import SprintModal from './components/SprintModal'
 import TeamModal from './components/TeamModal'
+import FilterBar from './components/FilterBar'
 import { primaryBtn } from './components/Modal'
+import { EMPTY_FILTERS, matchesFilters, type TaskFilters } from './filters'
 
 export default function App() {
   const hasSprints = useStore((s) => s.sprints.length > 0)
   const activeSprintId = useStore((s) => s.activeSprintId)
 
-  const [assigneeFilter, setAssigneeFilter] = useState<string | null>(null)
+  const tasks = useStore((s) => s.tasks)
+  const members = useStore((s) => s.members)
+  const [filters, setFilters] = useState<TaskFilters>(EMPTY_FILTERS)
+  const orbiting = tasks.filter((t) => t.sprintId === activeSprintId && t.status !== 'done')
+  const matchCount = orbiting.filter((t) => matchesFilters(t, filters, members)).length
+  // Clicking an avatar spotlights only that member; clicking it again clears the spotlight
+  const spotlight = filters.assignees.length === 1 ? filters.assignees[0] : null
+  const onSpotlight = (id: string | null) => setFilters((f) => ({ ...f, assignees: id ? [id] : [] }))
   const [taskOpen, setTaskOpen] = useState(false)
   const [taskId, setTaskId] = useState<string | null>(null)
   const [sprintOpen, setSprintOpen] = useState(false)
@@ -45,11 +54,12 @@ export default function App() {
         onNewSprint={() => openSprint(null)}
         onEditSprint={() => activeSprintId && openSprint(activeSprintId)}
         onTeam={() => setTeamOpen(true)}
-        assigneeFilter={assigneeFilter}
-        onFilterChange={setAssigneeFilter}
+        spotlight={spotlight}
+        onSpotlight={onSpotlight}
       />
       <main className="relative flex-1 overflow-hidden">
-        <SolarSystem onEditTask={(id) => openTask(id)} assigneeFilter={assigneeFilter} />
+        <SolarSystem onEditTask={(id) => openTask(id)} filters={filters} />
+        {hasSprints && <FilterBar filters={filters} onChange={setFilters} matchCount={matchCount} total={orbiting.length} />}
         <CompletedPanel onEditTask={(id) => openTask(id)} />
         {!hasSprints && (
           <div className="absolute inset-0 z-10 flex items-center justify-center p-6">

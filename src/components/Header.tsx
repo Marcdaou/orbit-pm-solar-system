@@ -6,14 +6,14 @@ interface Props {
   onNewSprint: () => void
   onEditSprint: () => void
   onTeam: () => void
-  assigneeFilter: string | null
-  onFilterChange: (id: string | null) => void
+  spotlight: string | null
+  onSpotlight: (id: string | null) => void
 }
 
 const fmt = (d: string) =>
   d ? new Date(d + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : ''
 
-export default function Header({ onNewTask, onNewSprint, onEditSprint, onTeam, assigneeFilter, onFilterChange }: Props) {
+export default function Header({ onNewTask, onNewSprint, onEditSprint, onTeam, spotlight, onSpotlight }: Props) {
   const { sprints, members, activeSprintId, setActiveSprint } = useStore()
   const sprint = sprints.find((s) => s.id === activeSprintId)
 
@@ -59,20 +59,20 @@ export default function Header({ onNewTask, onNewSprint, onEditSprint, onTeam, a
       )}
 
       <div className="ml-auto flex items-center gap-3">
-        <div className="flex items-center -space-x-1.5" role="group" aria-label="Filter by assignee">
+        <div className="flex items-center -space-x-1.5" role="group" aria-label="Spotlight a member">
           {members.map((m) => {
-            const sel = assigneeFilter === m.id
+            const sel = spotlight === m.id
             return (
               <button
                 key={m.id}
                 type="button"
-                title={m.name}
+                title={sel ? `${m.name} (click to clear spotlight)` : `Spotlight ${m.name}`}
                 aria-pressed={sel}
-                onClick={() => onFilterChange(sel ? null : m.id)}
+                onClick={() => onSpotlight(sel ? null : m.id)}
                 className="flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold text-slate-900 transition hover:z-10 hover:scale-110"
                 style={{
                   background: m.color,
-                  opacity: assigneeFilter && !sel ? 0.4 : 1,
+                  opacity: spotlight && !sel ? 0.4 : 1,
                   boxShadow: sel ? `0 0 0 2px #05060f, 0 0 0 4px ${m.color}` : '0 0 0 2px #05060f',
                   zIndex: sel ? 10 : undefined,
                 }}
