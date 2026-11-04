@@ -63,13 +63,15 @@ export default function TaskPlanet(p: Props) {
     <div
       ref={(el) => p.register(task.id, el)}
       className="absolute left-0 top-0"
-      style={{ width: PRIORITY_SIZES[task.priority], height: PRIORITY_SIZES[task.priority], marginLeft: -PRIORITY_SIZES[task.priority] / 2, marginTop: -PRIORITY_SIZES[task.priority] / 2, zIndex: p.dragging ? 50 : p.hovered ? 40 : 20 }}
+      style={{ width: PRIORITY_SIZES[task.priority], height: PRIORITY_SIZES[task.priority], marginLeft: -PRIORITY_SIZES[task.priority] / 2, marginTop: -PRIORITY_SIZES[task.priority] / 2, zIndex: p.dragging ? 50 : p.hovered ? 40 : p.dimmed ? 10 : 20 }}
     >
       <div
         className="select-none"
         style={{
-          opacity: p.dimmed ? 0.25 : 1,
-          transition: 'opacity 200ms',
+          // Non-matching tasks fade and shrink; hovering or dragging one brings it back to full
+          opacity: p.dimmed && !p.hovered && !p.dragging ? 0.15 : 1,
+          transform: p.dimmed && !p.hovered && !p.dragging ? 'scale(0.6)' : 'scale(1)',
+          transition: 'opacity 250ms, transform 250ms',
           cursor: p.dragging ? 'grabbing' : 'grab',
           touchAction: 'none',
         }}

@@ -7,10 +7,11 @@ import { dueLabel, sprintElapsed, taskDecay } from '../decay'
 import Sun from './Sun'
 import OrbitRing from './OrbitRing'
 import TaskPlanet, { PlanetBody } from './TaskPlanet'
+import { isFiltering, matchesFilters, type TaskFilters } from '../filters'
 
 interface Props {
   onEditTask: (id: string) => void
-  assigneeFilter: string | null
+  filters: TaskFilters
 }
 
 interface Departing {
@@ -31,7 +32,7 @@ interface DragState {
 
 const orbitIndex = (status: string) => ORBITS.findIndex((o) => o.status === status)
 
-export default function SolarSystem({ onEditTask, assigneeFilter }: Props) {
+export default function SolarSystem({ onEditTask, filters }: Props) {
   const tasks = useStore((s) => s.tasks)
   const members = useStore((s) => s.members)
   const sprints = useStore((s) => s.sprints)
@@ -64,6 +65,7 @@ export default function SolarSystem({ onEditTask, assigneeFilter }: Props) {
     () => tasks.filter((t) => t.sprintId === activeSprintId && t.status !== 'done'),
     [tasks, activeSprintId],
   )
+  const filtering = isFiltering(filters)
   const visibleRef = useRef(visible)
   visibleRef.current = visible
   const overdueIds = useMemo(
@@ -335,7 +337,7 @@ export default function SolarSystem({ onEditTask, assigneeFilter }: Props) {
               task={t}
               member={members.find((m) => m.id === t.assigneeId)}
               now={now}
-              dimmed={!!assigneeFilter && t.assigneeId !== assigneeFilter}
+              dimmed={filtering && !matchesFilters(t, filters, members)}
               dragging={dragging === t.id}
               hovered={hover?.id === t.id}
               register={register}
